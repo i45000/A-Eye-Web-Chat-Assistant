@@ -16,7 +16,7 @@ class AIScreenReader {
             pastKeyValues: null,
             isInitialized: false,
             isProcessing: false,
-            currentModel: 'none',
+            currentModel: 'gemini',
             messages: [],
             geminiSession: null
         };
@@ -69,8 +69,8 @@ class AIScreenReader {
 
         this.screenshotController = new ScreenshotController();
 
-        this.initializeAll();
         this.setupMessageListener();
+        this.initializeAll();
     }
 
     setupMessageListener() {
@@ -91,21 +91,44 @@ class AIScreenReader {
     }
 
     async initializeAll() {
-        await Promise.all([
-            this.initializeModel(),
-            this.initializeGemini()
-        ]);
-        this.setupEventListeners();
-        this.voiceController.initializeAll();
+        try {
+            await this.initializeGemini();
+            await this.initializeModel();
+            this.setupEventListeners();
+            this.voiceController.initializeAll();
+
+            this.elements.currentModel.textContent = 'Gemini Nano';
+            this.appendMessage('system', 'A-Eye Web Chat Assistant is ready to use.');
+            this.voiceController.speakText("A-Eye Web Chat Assistant is ready to use.");
+        } catch (error) {
+            console.error('Initialization failed:', error);
+            this.appendMessage('system', 'Initialization failed. Please refresh the extension.');
+        }
     }
 
     async initializeGemini() {
-        try {
-            this.state.geminiSession = await chrome.runtime.sendMessage({
-                type: 'initGemini'
-            });
-        } catch (error) {
-            console.error('Failed to initialize Gemini:', error);
+        let retries = 3;
+        while (retries > 0) {
+            try {
+                const response = await chrome.runtime.sendMessage({
+                    type: 'initGemini'
+                });
+
+                if (response.success) {
+                    this.state.geminiSession = response;
+                    console.log('Gemini initialization successful');
+                    return;
+                }
+
+                throw new Error(response.error || 'Gemini initialization failed');
+            } catch (error) {
+                console.error(`Gemini initialization attempt failed. Retries left: ${retries - 1}`);
+                retries--;
+                if (retries === 0) {
+                    throw error;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
         }
     }
 
@@ -330,25 +353,35 @@ class AIScreenReader {
 
         try {
             this.appendMessage('user', input);
+            this.voiceController.speakText("Message sent");
 
-            if (this.state.currentModel === 'moondream') {
-                await this.generateMoondreamResponse(input);
-            } else if (this.state.currentModel === 'gemini') {
+            if (this.state.currentModel === 'gemini') {
+                await this.ensureGeminiSession();
                 const response = await chrome.runtime.sendMessage({
                     type: 'chat',
                     text: input
                 });
-                this.handleResponse(response.content);
-            } else {
-                throw new Error('Please select a model first');
-            }
 
-            this.elements.userInput.value = '';
+                if (response.error) {
+                    throw new Error(response.error);
+                }
+
+                this.handleResponse(response.content);
+            } else if (this.state.currentModel === 'moondream') {
+                await this.generateMoondreamResponse(input);
+            }
         } catch (error) {
-            this.handleError('Error', error);
+            this.handleError('Message sending failed', error);
+            await this.initializeGemini();
         } finally {
             this.state.isProcessing = false;
             this.enableInterface();
+        }
+    }
+
+    async ensureGeminiSession() {
+        if (!this.state.geminiSession) {
+            await this.initializeGemini();
         }
     }
 
@@ -490,10 +523,10 @@ class AIScreenReader {
         Object.assign(this.state, {
             messages: [],
             pastKeyValues: null,
-            currentModel: 'none'
+            currentModel: 'gemini'
         });
 
-        this.elements.currentModel.textContent = 'None';
+        this.elements.currentModel.textContent = 'Gemini Nano';
         this.voiceController.cleanup();
         this.screenshotController.cleanup();
     }
@@ -508,6 +541,7 @@ class AIScreenReader {
             this.voiceController.speakText(messageText);
         } else {
             this.appendMessage('system', 'No AI response to repeat.');
+            this.voiceController.speakText('No AI response to repeat.');
         }
     }
     enableInterface() {

@@ -4,7 +4,18 @@ chrome.commands.onCommand.addListener((command) => {
   }
 });
 
-const SYSTEM_PROMPT = `You are a clear and concise web content summarizer. Your task is to present the core message in simple, plain text format suitable for text-to-speech.`;
+const SYSTEM_PROMPT = `You are A-Eye Web Chat Assistant, a helpful web browsing assistant. Your task is to summarize web content and respond to user queries in a clear, concise, and plain text format, suitable for text-to-speech. Avoid using markdown format.
+
+1. Summarizing Content: Provide a brief, plain text summary of the core message when summarizing web pages, suitable for text-to-speech.
+
+2. Respond to queries as follows:
+   - When asked "go to youtube / go youtube": Respond with "open https://www.youtube.com".
+   - When asked "search for youtube / find youtube": Respond with "open https://www.google.com/search?q=youtube".
+   - When asked "take a screenshot": Respond with "screenshot".
+   - When asked "take a rolling screenshot": Respond with "rollingScreenshot".
+   - When asked "summarize content / analyze content": Respond with "analyze content".
+
+Always respond in English. Your responses must be clear, helpful, and in plain text, avoiding any formatting like markdown.`;
 
 const ERROR_MESSAGES = {
   GEMINI_UNAVAILABLE: "Gemini Nano is not available.",
@@ -15,6 +26,7 @@ const ERROR_MESSAGES = {
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
 let currentGeminiSession = null;
+let isInitializing = false;
 
 chrome.commands.onCommand.addListener((command) => {
   console.log('Command received:', command);
@@ -69,7 +81,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 async function createGeminiSession() {
+  if (isInitializing) {
+    return { success: false, error: 'Session initialization in progress' };
+  }
+  
   try {
+    isInitializing = true;
+    
     const capabilities = await ai.languageModel.capabilities();
     if (capabilities.available === "no") {
       throw new Error(ERROR_MESSAGES.GEMINI_UNAVAILABLE);
@@ -83,20 +101,20 @@ async function createGeminiSession() {
       throw new Error(ERROR_MESSAGES.SESSION_FAILED);
     }
 
+    currentGeminiSession = session;
     return { success: true, session };
   } catch (error) {
     console.error('Gemini Session Creation Error:', error);
     return { success: false, error: error.message };
+  } finally {
+    isInitializing = false;
   }
 }
 
 async function ensureGeminiSession() {
   if (!currentGeminiSession) {
-    const { success, session, error } = await createGeminiSession();
-    if (!success) {
-      return false;
-    }
-    currentGeminiSession = session;
+    const result = await createGeminiSession();
+    return result.success;
   }
   return true;
 }
@@ -126,9 +144,7 @@ async function initializeAndAnalyze(text, sendResponse) {
       return;
     }
 
-    const prompt = `Summarize this web page about 100 words. Web Page Content:
-
-    "${text}"`;
+    const prompt = `Summarize this web page about 100 words. Web Page Content: "${text}"`;
 
     const result = await currentGeminiSession.prompt(prompt);
     handleGeminiResponse(result, sendResponse);
@@ -140,9 +156,13 @@ async function initializeAndAnalyze(text, sendResponse) {
 
 async function handleChat(text, sendResponse) {
   try {
-    if (!await ensureGeminiSession()) {
-      sendResponse({ error: ERROR_MESSAGES.GEMINI_UNAVAILABLE });
-      return;
+    const sessionAvailable = await ensureGeminiSession();
+    if (!sessionAvailable) {
+      await createGeminiSession();
+    }
+    
+    if (!currentGeminiSession) {
+      throw new Error(ERROR_MESSAGES.GEMINI_UNAVAILABLE);
     }
 
     const result = await currentGeminiSession.prompt(text);
