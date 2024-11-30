@@ -102,22 +102,6 @@ This Chrome extension is built on a modular architecture featuring advanced tech
 | Gemini Nano | `chrome://flags/#optimization-guide-on-device-model` | Enabled BypassPerfRequirement |
 | Prompt API | `chrome://flags/#prompt-api-for-gemini-nano` | Enabled |
 
-
-<script>
-function copyToClipboard() {
-  const link = document.getElementById('flag-link').textContent;
-  const el = document.createElement('textarea');
-  el.value = link;
-  document.body.appendChild(el);
-  el.select();
-  document.execCommand('copy');
-  document.body.removeChild(el);
-  alert('Link copied to clipboard');
-}
-</script>
-
-
-
 **Important:**  
 After modifying the flags above, **please restart Chrome** to apply the changes. Failure to do so may result in the settings not being properly activated.
 
