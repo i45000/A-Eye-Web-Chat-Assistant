@@ -96,14 +96,11 @@ This Chrome extension is built on a modular architecture featuring advanced tech
 
 #### Chrome Flags Setup
 
-| Category    | Flag                                              | Setting                         |
-|-------------|---------------------------------------------------|---------------------------------|
-| WebGPU      | ```chrome://flags/#enable-webgpu-developer-features``` | Enabled                         |
-| Gemini Nano | `chrome://flags/#optimization-guide-on-device-model`  | Enabled BypassPerfRequirement   |
-| Prompt API  | <div style="display: inline-flex; align-items: center;">
-                  <code id="flag-link">chrome://flags/#prompt-api-for-gemini-nano</code>
-                  <button onclick="copyToClipboard()" style="margin-left: 10px;">Copy</button>
-               </div> | Enabled  |
+| Category | Flag | Setting |
+|----------|------|---------|
+| WebGPU | `chrome://flags/#enable-webgpu-developer-features` | Enabled |
+| Gemini Nano | `chrome://flags/#optimization-guide-on-device-model` | Enabled BypassPerfRequirement |
+| Prompt API | `chrome://flags/#prompt-api-for-gemini-nano` | Enabled |
 
 
 <script>
